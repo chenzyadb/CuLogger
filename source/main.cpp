@@ -1,6 +1,6 @@
 ﻿#include <iostream>
 
-#include "CuLogger.hpp"
+#include "CuLogger.h"
 
 int main(int argc, char* argv[])
 {

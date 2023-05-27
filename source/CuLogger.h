@@ -196,9 +196,4 @@ class CuLogger
 		static int logLevel_;
 };
 
-CuLogger* CuLogger::instance_ = nullptr;
-std::once_flag CuLogger::flag_;
-std::string CuLogger::logPath_ = CuLogger::LOG_PATH_NONE;
-int CuLogger::logLevel_ = CuLogger::LOG_NONE;
-
 #endif
