@@ -10,6 +10,13 @@ int main(int argc, char* argv[])
     } else if (logPath.rfind("/") != std::string::npos) {
         logPath = logPath.substr(0, logPath.rfind("/")) + "/log.txt";
     }
+
+    std::cout << "Test Exception:" << std::endl;
+    try {
+        CuLogger::GetLogger();
+    } catch (std::exception e) {
+        std::cout << e.what() << std::endl;
+    }
     
     {
         CuLogger::CreateLogger(CuLogger::LOG_DEBUG, logPath);
@@ -34,9 +41,7 @@ int main(int argc, char* argv[])
 
     {
         const auto &logger = CuLogger::GetLogger();
-        {
-            std::cout << "test Singleton: " << (CuLogger::GetLogger() == logger) << std::endl;
-        }
+        std::cout << "Test Singleton: " << (CuLogger::GetLogger() == logger) << std::endl;
     }
 
     try {

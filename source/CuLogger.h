@@ -3,7 +3,7 @@
 #ifndef _CU_LOGGER_H
 #define _CU_LOGGER_H
 
-#if defined(_MSC_VER)
+#ifdef _MSC_VER
 #pragma warning(disable : 4996)
 #endif
 
@@ -47,6 +47,10 @@ class CuLogger
 
 		static CuLogger* GetLogger()
 		{
+			if (instance_ == nullptr) {
+				throw std::runtime_error("Logger has not been created.");
+			}
+
 			return instance_;
 		}
 
@@ -68,7 +72,7 @@ class CuLogger
 				if (size > 0) {
 					logText.resize((size_t)size + 1);
 					va_start(arg, format);
-					vsprintf(&logText[0], format, arg);
+					vsnprintf(&logText[0], logText.size(), format, arg);
 					va_end(arg);
 				}
 				logText.resize(strlen(logText.c_str()));
@@ -90,7 +94,7 @@ class CuLogger
 				if (size > 0) {
 					logText.resize((size_t)size + 1);
 					va_start(arg, format);
-					vsprintf(&logText[0], format, arg);
+					vsnprintf(&logText[0], logText.size(), format, arg);
 					va_end(arg);
 				}
 				logText.resize(strlen(logText.c_str()));
@@ -112,7 +116,7 @@ class CuLogger
 				if (size > 0) {
 					logText.resize((size_t)size + 1);
 					va_start(arg, format);
-					vsprintf(&logText[0], format, arg);
+					vsnprintf(&logText[0], logText.size(), format, arg);
 					va_end(arg);
 				}
 				logText.resize(strlen(logText.c_str()));
@@ -134,7 +138,7 @@ class CuLogger
 				if (size > 0) {
 					logText.resize((size_t)size + 1);
 					va_start(arg, format);
-					vsprintf(&logText[0], format, arg);
+					vsnprintf(&logText[0], logText.size(), format, arg);
 					va_end(arg);
 				}
 				logText.resize(strlen(logText.c_str()));
@@ -181,11 +185,12 @@ class CuLogger
 
 		std::string GetTimeInfo_() const
 		{
-			char timeInfo[16] = { 0 };
+			std::string timeInfo = std::string(16, '\0');
 			time_t time_stamp = time(nullptr);
-			struct tm* time_p = localtime(&time_stamp);
-			snprintf(timeInfo, sizeof(timeInfo), "%02d-%02d %02d:%02d:%02d",
-					time_p->tm_mon + 1, time_p->tm_mday, time_p->tm_hour, time_p->tm_min, time_p->tm_sec);
+			struct tm time = *localtime(&time_stamp);
+			snprintf(&timeInfo[0], timeInfo.size(), "%02d-%02d %02d:%02d:%02d",
+					time.tm_mon + 1, time.tm_mday, time.tm_hour, time.tm_min, time.tm_sec);
+			timeInfo.resize(strlen(timeInfo.c_str()));
 
 			return timeInfo;
 		}
