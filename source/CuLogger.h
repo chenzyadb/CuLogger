@@ -1,7 +1,8 @@
-// CuLogger V1 by chenzyadb.
+// CuLogger V2 by chenzyadb.
+// Based on C++14 STL (MSVC).
 
-#ifndef _CU_LOGGER_H
-#define _CU_LOGGER_H
+#ifndef _CU_LOGGER_V2_H
+#define _CU_LOGGER_V2_H
 
 #ifdef _MSC_VER
 #pragma warning(disable : 4996)
@@ -11,11 +12,27 @@
 #include <cstdarg>
 #include <cstring>
 #include <ctime>
-#include <iostream>
-#include <stdexcept>
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
+#include <thread>
+#include <functional>
+
+class LoggerExcept : public std::exception
+{
+	public:
+		LoggerExcept(const std::string &message) : message_(message) { }
+
+		const char* what() const noexcept override
+		{
+			return message_.c_str();
+		}
+
+	private:
+		const std::string message_;
+};
 
 class CuLogger
 {
@@ -30,7 +47,7 @@ class CuLogger
 		static void CreateLogger(const int &logLevel, const std::string &logPath)
 		{
 			if (instance_ != nullptr) {
-				throw std::runtime_error("Logger already exist.");
+				throw LoggerExcept("Logger already exist.");
 			}
 			std::call_once(flag_, CuLogger::CreateInstance_);
 			if (logLevel >= LOG_NONE && logLevel <= LOG_DEBUG) {
@@ -40,7 +57,7 @@ class CuLogger
 				if (CreateLog_(logPath)) {
 					logPath_ = logPath;
 				} else {
-					logLevel_ = LOG_NONE;
+					throw LoggerExcept("Failed to create log file.");
 				}
 			}
 		}
@@ -48,7 +65,7 @@ class CuLogger
 		static CuLogger* GetLogger()
 		{
 			if (instance_ == nullptr) {
-				throw std::runtime_error("Logger has not been created.");
+				throw LoggerExcept("Logger has not been created.");
 			}
 
 			return instance_;
@@ -61,96 +78,120 @@ class CuLogger
 			}
 		}
 
-		void Error(const char* format, ...) const
+		void Error(const char* format, ...)
 		{
-			std::string logText = "";
+			std::string logInfo = "";
 			{
 				va_list arg;
 				va_start(arg, format);
 				int size = vsnprintf(nullptr, 0, format, arg);
 				va_end(arg);
 				if (size > 0) {
-					logText.resize((size_t)size + 1);
+					logInfo.resize((size_t)size + 1);
 					va_start(arg, format);
-					vsnprintf(&logText[0], logText.size(), format, arg);
+					vsnprintf(&logInfo[0], logInfo.size(), format, arg);
 					va_end(arg);
 				}
-				logText.resize(strlen(logText.c_str()));
+				logInfo.resize(strlen(logInfo.c_str()));
 			}
 			if (logLevel_ >= LOG_ERROR) {
-				logText = GetTimeInfo_() + " [E] " + logText + "\n";
-				WriteLog_(logText);
+				auto log = GetTimeInfo_() + " [E] " + logInfo + "\n";
+				{
+					std::unique_lock<std::mutex> lck(mtx_);
+					logQueue_.emplace_back(log);
+					unblocked_ = true;
+					cv_.notify_all();
+				}
 			}
 		}
 
-		void Warning(const char* format, ...) const
+		void Warning(const char* format, ...)
 		{
-			std::string logText = "";
+			std::string logInfo = "";
 			{
 				va_list arg;
 				va_start(arg, format);
 				int size = vsnprintf(nullptr, 0, format, arg);
 				va_end(arg);
 				if (size > 0) {
-					logText.resize((size_t)size + 1);
+					logInfo.resize((size_t)size + 1);
 					va_start(arg, format);
-					vsnprintf(&logText[0], logText.size(), format, arg);
+					vsnprintf(&logInfo[0], logInfo.size(), format, arg);
 					va_end(arg);
 				}
-				logText.resize(strlen(logText.c_str()));
+				logInfo.resize(strlen(logInfo.c_str()));
 			}
 			if (logLevel_ >= LOG_WARNING) {
-				logText = GetTimeInfo_() + " [W] " + logText + "\n";
-				WriteLog_(logText);
+				auto log = GetTimeInfo_() + " [W] " + logInfo + "\n";
+				{
+					std::unique_lock<std::mutex> lck(mtx_);
+					logQueue_.emplace_back(log);
+					unblocked_ = true;
+					cv_.notify_all();
+				}
 			}
 		}
 
-		void Info(const char* format, ...) const
+		void Info(const char* format, ...)
 		{
-			std::string logText = "";
+			std::string logInfo = "";
 			{
 				va_list arg;
 				va_start(arg, format);
 				int size = vsnprintf(nullptr, 0, format, arg);
 				va_end(arg);
 				if (size > 0) {
-					logText.resize((size_t)size + 1);
+					logInfo.resize((size_t)size + 1);
 					va_start(arg, format);
-					vsnprintf(&logText[0], logText.size(), format, arg);
+					vsnprintf(&logInfo[0], logInfo.size(), format, arg);
 					va_end(arg);
 				}
-				logText.resize(strlen(logText.c_str()));
+				logInfo.resize(strlen(logInfo.c_str()));
 			}
 			if (logLevel_ >= LOG_INFO) {
-				logText = GetTimeInfo_() + " [I] " + logText + "\n";
-				WriteLog_(logText);
+				auto log = GetTimeInfo_() + " [I] " + logInfo + "\n";
+				{
+					std::unique_lock<std::mutex> lck(mtx_);
+					logQueue_.emplace_back(log);
+					unblocked_ = true;
+					cv_.notify_all();
+				}
 			}
 		}
 
-		void Debug(const char* format, ...) const
+		void Debug(const char* format, ...)
 		{
-			std::string logText = "";
+			std::string logInfo = "";
 			{
 				va_list arg;
 				va_start(arg, format);
 				int size = vsnprintf(nullptr, 0, format, arg);
 				va_end(arg);
 				if (size > 0) {
-					logText.resize((size_t)size + 1);
+					logInfo.resize((size_t)size + 1);
 					va_start(arg, format);
-					vsnprintf(&logText[0], logText.size(), format, arg);
+					vsnprintf(&logInfo[0], logInfo.size(), format, arg);
 					va_end(arg);
 				}
-				logText.resize(strlen(logText.c_str()));
+				logInfo.resize(strlen(logInfo.c_str()));
 			}
 			if (logLevel_ >= LOG_DEBUG) {
-				logText = GetTimeInfo_() + " [D] " + logText + "\n";
-				WriteLog_(logText);
+				auto log = GetTimeInfo_() + " [D] " + logInfo + "\n";
+				{
+					std::unique_lock<std::mutex> lck(mtx_);
+					logQueue_.emplace_back(log);
+					unblocked_ = true;
+					cv_.notify_all();
+				}
 			}
 		}
 
 	private:
-		CuLogger() = default;
+		CuLogger()
+		{
+			thread_ = std::thread(std::bind(&CuLogger::LoggerMain_, this));
+			thread_.detach();
+		}
 		CuLogger(const CuLogger&) = delete;
 		CuLogger &operator=(const CuLogger&) = delete;
 
@@ -161,29 +202,44 @@ class CuLogger
 
 		static bool CreateLog_(const std::string &logPath)
 		{
-			bool created = false;
 			FILE* fp = fopen(logPath.c_str(), "w");
 			if (fp) {
-				fputs("", fp);
-				fflush(fp);
 				fclose(fp);
-				created = true;
+				return true;
 			}
-
-			return created;
+			return false;
 		}
 
-		void WriteLog_(const std::string &text) const
+		void LoggerMain_()
 		{
 			FILE* fp = fopen(logPath_.c_str(), "a");
-			if (fp) {
-				fputs(text.c_str(), fp);
-				fflush(fp);
-				fclose(fp);
+			if (!fp) {
+				throw LoggerExcept("Failed to open log file.");
 			}
+			for (;;) {
+				std::vector<std::string> workQueue{};
+				{
+					std::unique_lock<std::mutex> lck(mtx_);
+					while (!unblocked_) {
+						cv_.wait(lck);
+					}
+					unblocked_ = false;
+					if (!logQueue_.empty()) {
+						workQueue = logQueue_;
+						logQueue_.clear();
+					}
+				}
+				if (!workQueue.empty()) {
+					for (const auto &log : workQueue) {
+						fputs(log.c_str(), fp);
+					}
+					fflush(fp);
+				}
+			}
+			fclose(fp);
 		}
 
-		std::string GetTimeInfo_() const
+		std::string GetTimeInfo_()
 		{
 			std::string timeInfo = std::string(16, '\0');
 			time_t time_stamp = time(nullptr);
@@ -199,6 +255,11 @@ class CuLogger
 		static std::once_flag flag_;
 		static std::string logPath_;
 		static int logLevel_;
+		static std::thread thread_;
+		static std::condition_variable cv_;
+		static std::mutex mtx_;
+		static bool unblocked_;
+		static std::vector<std::string> logQueue_;
 };
 
 #endif

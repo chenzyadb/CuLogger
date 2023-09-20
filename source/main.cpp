@@ -1,5 +1,5 @@
 ﻿#include <iostream>
-
+#include <chrono>
 #include "CuLogger.h"
 
 int main(int argc, char* argv[])
@@ -11,19 +11,17 @@ int main(int argc, char* argv[])
         logPath = logPath.substr(0, logPath.rfind("/")) + "/log.txt";
     }
 
-    std::cout << "Test Exception:" << std::endl;
     try {
         CuLogger::GetLogger();
-    } catch (std::exception e) {
+    } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
     }
     
-    {
-        CuLogger::CreateLogger(CuLogger::LOG_DEBUG, logPath);
-    }
+    CuLogger::CreateLogger(CuLogger::LOG_DEBUG, logPath);
 
     {
         const auto &logger = CuLogger::GetLogger();
+        logger->ResetLogLevel(CuLogger::LOG_INFO);
         logger->Error("This is log output.");
         logger->Warning("This is log output.");
         logger->Info("This is log output.");
@@ -32,23 +30,30 @@ int main(int argc, char* argv[])
 
     {
         const auto &logger = CuLogger::GetLogger();
-        logger->ResetLogLevel(CuLogger::LOG_ERROR);
-        logger->Error("This is log output.");
-        logger->Warning("This is log output.");
-        logger->Info("This is log output.");
-        logger->Debug("This is log output.");
+        std::cout << "Singleton: " << ((CuLogger::GetLogger() == logger) ? "true" : "false") << std::endl;
     }
 
     {
-        const auto &logger = CuLogger::GetLogger();
-        std::cout << "Test Singleton: " << (CuLogger::GetLogger() == logger) << std::endl;
+        std::thread thread0([&]() {
+            auto logger = CuLogger::GetLogger();
+            for (int i = 1; i <= 100000; i++) {
+                logger->Info("thread0 log %d", i);
+            }
+                            });
+        thread0.detach();
     }
 
-    try {
-        CuLogger::CreateLogger(CuLogger::LOG_NONE, CuLogger::LOG_PATH_NONE);
-    } catch (std::exception e) {
-        std::cout << e.what() << std::endl;
+    {
+        std::thread thread1([&]() {
+            auto logger = CuLogger::GetLogger();
+            for (int i = 1; i <= 100000; i++) {
+                logger->Info("thread1 log %d", i);
+            }
+                            });
+        thread1.detach();
     }
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
 
     return 0;
 }
