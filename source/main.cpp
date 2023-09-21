@@ -21,6 +21,15 @@ int main(int argc, char* argv[])
 
     {
         const auto &logger = CuLogger::GetLogger();
+        logger->ResetLogLevel(CuLogger::LOG_ERROR);
+        logger->Error("This is log output.");
+        logger->Warning("This is log output.");
+        logger->Info("This is log output.");
+        logger->Debug("This is log output.");
+    }
+
+    {
+        const auto &logger = CuLogger::GetLogger();
         logger->ResetLogLevel(CuLogger::LOG_INFO);
         logger->Error("This is log output.");
         logger->Warning("This is log output.");
@@ -37,23 +46,23 @@ int main(int argc, char* argv[])
         std::thread thread0([&]() {
             auto logger = CuLogger::GetLogger();
             for (int i = 1; i <= 100000; i++) {
-                logger->Info("thread0 log %d", i);
+                logger->Info("thread0 log %lld.", i);
             }
-                            });
+        });
         thread0.detach();
     }
-
+    
     {
         std::thread thread1([&]() {
             auto logger = CuLogger::GetLogger();
             for (int i = 1; i <= 100000; i++) {
-                logger->Info("thread1 log %d", i);
+                logger->Info("thread1 log %d.", i);
             }
-                            });
+        });
         thread1.detach();
     }
-
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    
+    std::this_thread::sleep_for(std::chrono::seconds(5));
 
     return 0;
 }

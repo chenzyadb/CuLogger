@@ -50,12 +50,15 @@ class CuLogger
 				throw LoggerExcept("Logger already exist.");
 			}
 			std::call_once(flag_, CuLogger::CreateInstance_);
-			if (logLevel >= LOG_NONE && logLevel <= LOG_DEBUG) {
-				logLevel_ = logLevel;
+			if (instance_ == nullptr) {
+				throw LoggerExcept("Failed to create logger.");
 			}
-			if (logLevel_ != LOG_NONE) {
+			if (logLevel >= LOG_NONE && logLevel <= LOG_DEBUG) {
+				instance_->logLevel_ = logLevel;
+			}
+			if (instance_->logLevel_ != LOG_NONE) {
 				if (CreateLog_(logPath)) {
-					logPath_ = logPath;
+					instance_->logPath_ = logPath;
 				} else {
 					throw LoggerExcept("Failed to create log file.");
 				}
@@ -74,126 +77,119 @@ class CuLogger
 		void ResetLogLevel(const int &logLevel)
 		{
 			if (logLevel >= LOG_NONE && logLevel <= LOG_DEBUG) {
+				std::unique_lock<std::mutex> lck(mtx_);
 				logLevel_ = logLevel;
 			}
 		}
 
 		void Error(const char* format, ...)
 		{
-			std::string logInfo = "";
-			{
-				va_list arg;
-				va_start(arg, format);
-				int size = vsnprintf(nullptr, 0, format, arg);
-				va_end(arg);
-				if (size > 0) {
-					logInfo.resize((size_t)size + 1);
-					va_start(arg, format);
-					vsnprintf(&logInfo[0], logInfo.size(), format, arg);
-					va_end(arg);
-				}
-				logInfo.resize(strlen(logInfo.c_str()));
-			}
 			if (logLevel_ >= LOG_ERROR) {
-				auto log = GetTimeInfo_() + " [E] " + logInfo + "\n";
+				std::unique_lock<std::mutex> lck(mtx_);
+				std::string logText = "";
 				{
-					std::unique_lock<std::mutex> lck(mtx_);
-					logQueue_.emplace_back(log);
-					unblocked_ = true;
-					cv_.notify_all();
+					va_list arg;
+					va_start(arg, format);
+					int size = vsnprintf(nullptr, 0, format, arg);
+					va_end(arg);
+					if (size > 0) {
+						logText.resize(static_cast<size_t>(size) + 1);
+						va_start(arg, format);
+						vsnprintf(&logText[0], static_cast<size_t>(size) + 1, format, arg);
+						va_end(arg);
+						logText.resize(size);
+						logText.shrink_to_fit();
+						logText = GetTimeInfo_() + " [E] " + logText + "\n";
+					}
 				}
+				logQueue_.emplace_back(logText);
+				cv_.notify_all();
 			}
 		}
 
 		void Warning(const char* format, ...)
 		{
-			std::string logInfo = "";
-			{
-				va_list arg;
-				va_start(arg, format);
-				int size = vsnprintf(nullptr, 0, format, arg);
-				va_end(arg);
-				if (size > 0) {
-					logInfo.resize((size_t)size + 1);
-					va_start(arg, format);
-					vsnprintf(&logInfo[0], logInfo.size(), format, arg);
-					va_end(arg);
-				}
-				logInfo.resize(strlen(logInfo.c_str()));
-			}
 			if (logLevel_ >= LOG_WARNING) {
-				auto log = GetTimeInfo_() + " [W] " + logInfo + "\n";
+				std::unique_lock<std::mutex> lck(mtx_);
+				std::string logText = "";
 				{
-					std::unique_lock<std::mutex> lck(mtx_);
-					logQueue_.emplace_back(log);
-					unblocked_ = true;
-					cv_.notify_all();
+					va_list arg;
+					va_start(arg, format);
+					int size = vsnprintf(nullptr, 0, format, arg);
+					va_end(arg);
+					if (size > 0) {
+						logText.resize(static_cast<size_t>(size) + 1);
+						va_start(arg, format);
+						vsnprintf(&logText[0], static_cast<size_t>(size) + 1, format, arg);
+						va_end(arg);
+						logText.resize(size);
+						logText.shrink_to_fit();
+						logText = GetTimeInfo_() + " [W] " + logText + "\n";
+					}
 				}
+				logQueue_.emplace_back(logText);
+				cv_.notify_all();
 			}
 		}
 
 		void Info(const char* format, ...)
 		{
-			std::string logInfo = "";
-			{
-				va_list arg;
-				va_start(arg, format);
-				int size = vsnprintf(nullptr, 0, format, arg);
-				va_end(arg);
-				if (size > 0) {
-					logInfo.resize((size_t)size + 1);
-					va_start(arg, format);
-					vsnprintf(&logInfo[0], logInfo.size(), format, arg);
-					va_end(arg);
-				}
-				logInfo.resize(strlen(logInfo.c_str()));
-			}
 			if (logLevel_ >= LOG_INFO) {
-				auto log = GetTimeInfo_() + " [I] " + logInfo + "\n";
+				std::unique_lock<std::mutex> lck(mtx_);
+				std::string logText = "";
 				{
-					std::unique_lock<std::mutex> lck(mtx_);
-					logQueue_.emplace_back(log);
-					unblocked_ = true;
-					cv_.notify_all();
+					va_list arg;
+					va_start(arg, format);
+					int size = vsnprintf(nullptr, 0, format, arg);
+					va_end(arg);
+					if (size > 0) {
+						logText.resize(static_cast<size_t>(size) + 1);
+						va_start(arg, format);
+						vsnprintf(&logText[0], static_cast<size_t>(size) + 1, format, arg);
+						va_end(arg);
+						logText.resize(size);
+						logText.shrink_to_fit();
+						logText = GetTimeInfo_() + " [I] " + logText + "\n";
+					}
 				}
+				logQueue_.emplace_back(logText);
+				cv_.notify_all();
 			}
 		}
 
 		void Debug(const char* format, ...)
 		{
-			std::string logInfo = "";
-			{
-				va_list arg;
-				va_start(arg, format);
-				int size = vsnprintf(nullptr, 0, format, arg);
-				va_end(arg);
-				if (size > 0) {
-					logInfo.resize((size_t)size + 1);
-					va_start(arg, format);
-					vsnprintf(&logInfo[0], logInfo.size(), format, arg);
-					va_end(arg);
-				}
-				logInfo.resize(strlen(logInfo.c_str()));
-			}
 			if (logLevel_ >= LOG_DEBUG) {
-				auto log = GetTimeInfo_() + " [D] " + logInfo + "\n";
+				std::unique_lock<std::mutex> lck(mtx_);
+				std::string logText = "";
 				{
-					std::unique_lock<std::mutex> lck(mtx_);
-					logQueue_.emplace_back(log);
-					unblocked_ = true;
-					cv_.notify_all();
+					va_list arg;
+					va_start(arg, format);
+					int size = vsnprintf(nullptr, 0, format, arg);
+					va_end(arg);
+					if (size > 0) {
+						logText.resize(static_cast<size_t>(size) + 1);
+						va_start(arg, format);
+						vsnprintf(&logText[0], static_cast<size_t>(size) + 1, format, arg);
+						va_end(arg);
+						logText.resize(size);
+						logText.shrink_to_fit();
+						logText = GetTimeInfo_() + " [D] " + logText + "\n";
+					}
 				}
+				logQueue_.emplace_back(logText);
+				cv_.notify_all();
 			}
 		}
 
 	private:
-		CuLogger()
+		CuLogger() : logPath_(LOG_PATH_NONE), logLevel_(LOG_NONE), cv_(), mtx_(), logQueue_()
 		{
-			thread_ = std::thread(std::bind(&CuLogger::LoggerMain_, this));
+			std::thread thread_(std::bind(&CuLogger::LoggerMain_, this));
 			thread_.detach();
 		}
-		CuLogger(const CuLogger&) = delete;
-		CuLogger &operator=(const CuLogger&) = delete;
+		CuLogger(const CuLogger &other) = delete;
+		CuLogger &operator=(const CuLogger &other) = delete;
 
 		static void CreateInstance_()
 		{
@@ -220,14 +216,11 @@ class CuLogger
 				std::vector<std::string> workQueue{};
 				{
 					std::unique_lock<std::mutex> lck(mtx_);
-					while (!unblocked_) {
+					while (logQueue_.empty()) {
 						cv_.wait(lck);
 					}
-					unblocked_ = false;
-					if (!logQueue_.empty()) {
-						workQueue = logQueue_;
-						logQueue_.clear();
-					}
+					workQueue = logQueue_;
+					logQueue_.clear();
 				}
 				if (!workQueue.empty()) {
 					for (const auto &log : workQueue) {
@@ -241,25 +234,25 @@ class CuLogger
 
 		std::string GetTimeInfo_()
 		{
-			std::string timeInfo = std::string(16, '\0');
+			std::string timeInfo = "";
+			timeInfo.resize(16);
 			time_t time_stamp = time(nullptr);
 			struct tm time = *localtime(&time_stamp);
-			snprintf(&timeInfo[0], timeInfo.size(), "%02d-%02d %02d:%02d:%02d",
+			int len = snprintf(&timeInfo[0], timeInfo.size(), "%02d-%02d %02d:%02d:%02d",
 					time.tm_mon + 1, time.tm_mday, time.tm_hour, time.tm_min, time.tm_sec);
-			timeInfo.resize(strlen(timeInfo.c_str()));
+			timeInfo.resize(len);
+			timeInfo.shrink_to_fit();
 
 			return timeInfo;
 		}
 
 		static CuLogger* instance_;
 		static std::once_flag flag_;
-		static std::string logPath_;
-		static int logLevel_;
-		static std::thread thread_;
-		static std::condition_variable cv_;
-		static std::mutex mtx_;
-		static bool unblocked_;
-		static std::vector<std::string> logQueue_;
+		std::string logPath_;
+		int logLevel_;
+		std::condition_variable cv_;
+		std::mutex mtx_;
+		std::vector<std::string> logQueue_;
 };
 
 #endif
