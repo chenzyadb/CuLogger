@@ -37,7 +37,6 @@ class LoggerExcept : public std::exception
 class CuLogger
 {
 	public:
-		static constexpr char LOG_PATH_NONE[] = "NONE";
 		static constexpr int LOG_NONE = -1;
 		static constexpr int LOG_ERROR = 0;
 		static constexpr int LOG_WARNING = 1;
@@ -76,16 +75,16 @@ class CuLogger
 
 		void ResetLogLevel(const int &logLevel)
 		{
+			std::unique_lock<std::mutex> lck(mtx_);
 			if (logLevel >= LOG_NONE && logLevel <= LOG_DEBUG) {
-				std::unique_lock<std::mutex> lck(mtx_);
 				logLevel_ = logLevel;
 			}
 		}
 
 		void Error(const char* format, ...)
 		{
+			std::unique_lock<std::mutex> lck(mtx_);
 			if (logLevel_ >= LOG_ERROR) {
-				std::unique_lock<std::mutex> lck(mtx_);
 				std::string logText = "";
 				{
 					va_list arg;
@@ -95,7 +94,7 @@ class CuLogger
 					if (size > 0) {
 						logText.resize(static_cast<size_t>(size) + 1);
 						va_start(arg, format);
-						vsnprintf(&logText[0], static_cast<size_t>(size) + 1, format, arg);
+						vsnprintf(std::addressof(logText[0]), static_cast<size_t>(size) + 1, format, arg);
 						va_end(arg);
 						logText.resize(size);
 						logText.shrink_to_fit();
@@ -109,8 +108,8 @@ class CuLogger
 
 		void Warning(const char* format, ...)
 		{
+			std::unique_lock<std::mutex> lck(mtx_);
 			if (logLevel_ >= LOG_WARNING) {
-				std::unique_lock<std::mutex> lck(mtx_);
 				std::string logText = "";
 				{
 					va_list arg;
@@ -120,7 +119,7 @@ class CuLogger
 					if (size > 0) {
 						logText.resize(static_cast<size_t>(size) + 1);
 						va_start(arg, format);
-						vsnprintf(&logText[0], static_cast<size_t>(size) + 1, format, arg);
+						vsnprintf(std::addressof(logText[0]), static_cast<size_t>(size) + 1, format, arg);
 						va_end(arg);
 						logText.resize(size);
 						logText.shrink_to_fit();
@@ -134,8 +133,8 @@ class CuLogger
 
 		void Info(const char* format, ...)
 		{
+			std::unique_lock<std::mutex> lck(mtx_);
 			if (logLevel_ >= LOG_INFO) {
-				std::unique_lock<std::mutex> lck(mtx_);
 				std::string logText = "";
 				{
 					va_list arg;
@@ -145,7 +144,7 @@ class CuLogger
 					if (size > 0) {
 						logText.resize(static_cast<size_t>(size) + 1);
 						va_start(arg, format);
-						vsnprintf(&logText[0], static_cast<size_t>(size) + 1, format, arg);
+						vsnprintf(std::addressof(logText[0]), static_cast<size_t>(size) + 1, format, arg);
 						va_end(arg);
 						logText.resize(size);
 						logText.shrink_to_fit();
@@ -159,8 +158,8 @@ class CuLogger
 
 		void Debug(const char* format, ...)
 		{
+			std::unique_lock<std::mutex> lck(mtx_);
 			if (logLevel_ >= LOG_DEBUG) {
-				std::unique_lock<std::mutex> lck(mtx_);
 				std::string logText = "";
 				{
 					va_list arg;
@@ -170,7 +169,7 @@ class CuLogger
 					if (size > 0) {
 						logText.resize(static_cast<size_t>(size) + 1);
 						va_start(arg, format);
-						vsnprintf(&logText[0], static_cast<size_t>(size) + 1, format, arg);
+						vsnprintf(std::addressof(logText[0]), static_cast<size_t>(size) + 1, format, arg);
 						va_end(arg);
 						logText.resize(size);
 						logText.shrink_to_fit();
@@ -183,7 +182,7 @@ class CuLogger
 		}
 
 	private:
-		CuLogger() : logPath_(LOG_PATH_NONE), logLevel_(LOG_NONE), cv_(), mtx_(), logQueue_()
+		CuLogger() : logPath_(), logLevel_(LOG_NONE), cv_(), mtx_(), logQueue_()
 		{
 			std::thread thread_(std::bind(&CuLogger::LoggerMain_, this));
 			thread_.detach();
@@ -198,7 +197,7 @@ class CuLogger
 
 		static bool CreateLog_(const std::string &logPath)
 		{
-			FILE* fp = fopen(logPath.c_str(), "w");
+			auto fp = fopen(logPath.c_str(), "w");
 			if (fp) {
 				fclose(fp);
 				return true;
@@ -208,7 +207,7 @@ class CuLogger
 
 		void LoggerMain_()
 		{
-			FILE* fp = fopen(logPath_.c_str(), "a");
+			auto fp = fopen(logPath_.c_str(), "a");
 			if (!fp) {
 				throw LoggerExcept("Failed to open log file.");
 			}
@@ -235,13 +234,15 @@ class CuLogger
 		std::string GetTimeInfo_()
 		{
 			std::string timeInfo = "";
-			timeInfo.resize(16);
-			time_t time_stamp = time(nullptr);
-			struct tm time = *localtime(&time_stamp);
-			int len = snprintf(&timeInfo[0], timeInfo.size(), "%02d-%02d %02d:%02d:%02d",
-					time.tm_mon + 1, time.tm_mday, time.tm_hour, time.tm_min, time.tm_sec);
-			timeInfo.resize(len);
-			timeInfo.shrink_to_fit();
+			{
+				timeInfo.resize(16);
+				auto tm = time(nullptr);
+				auto time_stamp = *localtime(std::addressof(tm));
+				int len = snprintf(std::addressof(timeInfo[0]), timeInfo.size(), "%02d-%02d %02d:%02d:%02d",
+					time_stamp.tm_mon + 1, time_stamp.tm_mday, time_stamp.tm_hour, time_stamp.tm_min, time_stamp.tm_sec);
+				timeInfo.resize(len);
+				timeInfo.shrink_to_fit();
+			}
 
 			return timeInfo;
 		}

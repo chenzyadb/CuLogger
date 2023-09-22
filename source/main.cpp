@@ -20,7 +20,12 @@ int main(int argc, char* argv[])
     CuLogger::CreateLogger(CuLogger::LOG_DEBUG, logPath);
 
     {
-        const auto &logger = CuLogger::GetLogger();
+        auto logger = CuLogger::GetLogger();
+        std::cout << "Singleton: " << ((CuLogger::GetLogger() == logger) ? "true" : "false") << std::endl;
+    }
+
+    {
+        auto logger = CuLogger::GetLogger();
         logger->ResetLogLevel(CuLogger::LOG_ERROR);
         logger->Error("This is log output.");
         logger->Warning("This is log output.");
@@ -29,7 +34,7 @@ int main(int argc, char* argv[])
     }
 
     {
-        const auto &logger = CuLogger::GetLogger();
+        auto logger = CuLogger::GetLogger();
         logger->ResetLogLevel(CuLogger::LOG_INFO);
         logger->Error("This is log output.");
         logger->Warning("This is log output.");
@@ -38,15 +43,10 @@ int main(int argc, char* argv[])
     }
 
     {
-        const auto &logger = CuLogger::GetLogger();
-        std::cout << "Singleton: " << ((CuLogger::GetLogger() == logger) ? "true" : "false") << std::endl;
-    }
-
-    {
         std::thread thread0([&]() {
-            auto logger = CuLogger::GetLogger();
+            auto &logger = *CuLogger::GetLogger();
             for (int i = 1; i <= 100000; i++) {
-                logger->Info("thread0 log %lld.", i);
+                logger.Info("thread0 log %lld.", i);
             }
         });
         thread0.detach();
