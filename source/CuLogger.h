@@ -85,7 +85,7 @@ class CuLogger
 					if (size > 0) {
 						logText.resize(static_cast<size_t>(size) + 1);
 						va_start(arg, format);
-						vsnprintf(std::addressof(logText[0]), static_cast<size_t>(size) + 1, format, arg);
+						vsnprintf(std::addressof(logText[0]), logText.size(), format, arg);
 						va_end(arg);
 						logText.resize(size);
 						logText.shrink_to_fit();
@@ -110,7 +110,7 @@ class CuLogger
 					if (size > 0) {
 						logText.resize(static_cast<size_t>(size) + 1);
 						va_start(arg, format);
-						vsnprintf(std::addressof(logText[0]), static_cast<size_t>(size) + 1, format, arg);
+						vsnprintf(std::addressof(logText[0]), logText.size(), format, arg);
 						va_end(arg);
 						logText.resize(size);
 						logText.shrink_to_fit();
@@ -135,7 +135,7 @@ class CuLogger
 					if (size > 0) {
 						logText.resize(static_cast<size_t>(size) + 1);
 						va_start(arg, format);
-						vsnprintf(std::addressof(logText[0]), static_cast<size_t>(size) + 1, format, arg);
+						vsnprintf(std::addressof(logText[0]), logText.size(), format, arg);
 						va_end(arg);
 						logText.resize(size);
 						logText.shrink_to_fit();
@@ -160,7 +160,7 @@ class CuLogger
 					if (size > 0) {
 						logText.resize(static_cast<size_t>(size) + 1);
 						va_start(arg, format);
-						vsnprintf(std::addressof(logText[0]), static_cast<size_t>(size) + 1, format, arg);
+						vsnprintf(std::addressof(logText[0]), logText.size(), format, arg);
 						va_end(arg);
 						logText.resize(size);
 						logText.shrink_to_fit();
