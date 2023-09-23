@@ -48,20 +48,12 @@ class CuLogger
 			if (instance_ != nullptr) {
 				throw LoggerExcept("Logger already exist.");
 			}
-			std::call_once(flag_, CuLogger::CreateInstance_);
-			if (instance_ == nullptr) {
-				throw LoggerExcept("Failed to create logger.");
-			}
-			if (logLevel >= LOG_NONE && logLevel <= LOG_DEBUG) {
-				instance_->logLevel_ = logLevel;
-			}
-			if (instance_->logLevel_ != LOG_NONE) {
-				if (CreateLog_(logPath)) {
-					instance_->logPath_ = logPath;
-				} else {
-					throw LoggerExcept("Failed to create log file.");
+			std::call_once(flag_, [&]() {
+				instance_ = new CuLogger(logLevel, logPath);
+				if (instance_ == nullptr) {
+					throw LoggerExcept("Failed to create logger.");
 				}
-			}
+			});
 		}
 
 		static CuLogger* GetLogger()
@@ -69,7 +61,6 @@ class CuLogger
 			if (instance_ == nullptr) {
 				throw LoggerExcept("Logger has not been created.");
 			}
-
 			return instance_;
 		}
 
@@ -182,20 +173,20 @@ class CuLogger
 		}
 
 	private:
-		CuLogger() : logPath_(), logLevel_(LOG_NONE), cv_(), mtx_(), logQueue_()
+		CuLogger(const int &logLevel, const std::string &logPath) : 
+			logPath_(logPath), logLevel_(logLevel), cv_(), mtx_(), logQueue_() 
 		{
+			if (!CreateLog_(logPath_)) {
+				throw LoggerExcept("Failed to create log file.");
+			}
 			std::thread thread_(std::bind(&CuLogger::LoggerMain_, this));
 			thread_.detach();
 		}
+		CuLogger() = delete;
 		CuLogger(const CuLogger &other) = delete;
 		CuLogger &operator=(const CuLogger &other) = delete;
 
-		static void CreateInstance_()
-		{
-			instance_ = new CuLogger();
-		}
-
-		static bool CreateLog_(const std::string &logPath)
+		bool CreateLog_(const std::string &logPath)
 		{
 			auto fp = fopen(logPath.c_str(), "w");
 			if (fp) {
@@ -236,10 +227,10 @@ class CuLogger
 			std::string timeInfo = "";
 			{
 				timeInfo.resize(16);
-				auto tm = time(nullptr);
-				auto time_stamp = *localtime(std::addressof(tm));
+				auto time_stamp = time(nullptr);
+				auto tm_ptr = localtime(std::addressof(time_stamp));
 				int len = snprintf(std::addressof(timeInfo[0]), timeInfo.size(), "%02d-%02d %02d:%02d:%02d",
-					time_stamp.tm_mon + 1, time_stamp.tm_mday, time_stamp.tm_hour, time_stamp.tm_min, time_stamp.tm_sec);
+					tm_ptr->tm_mon + 1, tm_ptr->tm_mday, tm_ptr->tm_hour, tm_ptr->tm_min, tm_ptr->tm_sec);
 				timeInfo.resize(len);
 				timeInfo.shrink_to_fit();
 			}
