@@ -76,99 +76,95 @@ class CuLogger
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
 			if (logLevel_ >= LOG_ERROR) {
-				std::string logText = "";
-				{
-					va_list arg;
+				va_list arg;
+				va_start(arg, format);
+				auto len = vsnprintf(nullptr, 0, format, arg);
+				va_end(arg);
+				if (len > 0) {
+					auto size = static_cast<size_t>(len) + 1;
+					char* buffer = new char[size];
+					memset(buffer, '\0', size);
 					va_start(arg, format);
-					int size = vsnprintf(nullptr, 0, format, arg);
+					vsnprintf(buffer, size, format, arg);
 					va_end(arg);
-					if (size > 0) {
-						logText.resize(static_cast<size_t>(size) + 1);
-						va_start(arg, format);
-						vsnprintf(std::addressof(logText[0]), logText.size(), format, arg);
-						va_end(arg);
-						logText.resize(size);
-						logText.shrink_to_fit();
-						logText = GetTimeInfo_() + " [E] " + logText + "\n";
-					}
+					std::string logText(buffer);
+					delete[] buffer;
+					logText = GetTimeInfo_() + " [E] " + logText + "\n";
+					logQueue_.emplace_back(logText);
+					cv_.notify_all();
 				}
-				logQueue_.emplace_back(logText);
-				cv_.notify_all();
 			}
 		}
 
 		void Warning(const char* format, ...)
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
-			if (logLevel_ >= LOG_WARNING) {
-				std::string logText = "";
-				{
-					va_list arg;
+			if (logLevel_ >= LOG_ERROR) {
+				va_list arg;
+				va_start(arg, format);
+				auto len = vsnprintf(nullptr, 0, format, arg);
+				va_end(arg);
+				if (len > 0) {
+					auto size = static_cast<size_t>(len) + 1;
+					char* buffer = new char[size];
+					memset(buffer, '\0', size);
 					va_start(arg, format);
-					int size = vsnprintf(nullptr, 0, format, arg);
+					vsnprintf(buffer, size, format, arg);
 					va_end(arg);
-					if (size > 0) {
-						logText.resize(static_cast<size_t>(size) + 1);
-						va_start(arg, format);
-						vsnprintf(std::addressof(logText[0]), logText.size(), format, arg);
-						va_end(arg);
-						logText.resize(size);
-						logText.shrink_to_fit();
-						logText = GetTimeInfo_() + " [W] " + logText + "\n";
-					}
+					std::string logText(buffer);
+					delete[] buffer;
+					logText = GetTimeInfo_() + " [W] " + logText + "\n";
+					logQueue_.emplace_back(logText);
+					cv_.notify_all();
 				}
-				logQueue_.emplace_back(logText);
-				cv_.notify_all();
 			}
 		}
 
 		void Info(const char* format, ...)
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
-			if (logLevel_ >= LOG_INFO) {
-				std::string logText = "";
-				{
-					va_list arg;
+			if (logLevel_ >= LOG_ERROR) {
+				va_list arg;
+				va_start(arg, format);
+				auto len = vsnprintf(nullptr, 0, format, arg);
+				va_end(arg);
+				if (len > 0) {
+					auto size = static_cast<size_t>(len) + 1;
+					char* buffer = new char[size];
+					memset(buffer, '\0', size);
 					va_start(arg, format);
-					int size = vsnprintf(nullptr, 0, format, arg);
+					vsnprintf(buffer, size, format, arg);
 					va_end(arg);
-					if (size > 0) {
-						logText.resize(static_cast<size_t>(size) + 1);
-						va_start(arg, format);
-						vsnprintf(std::addressof(logText[0]), logText.size(), format, arg);
-						va_end(arg);
-						logText.resize(size);
-						logText.shrink_to_fit();
-						logText = GetTimeInfo_() + " [I] " + logText + "\n";
-					}
+					std::string logText(buffer);
+					delete[] buffer;
+					logText = GetTimeInfo_() + " [I] " + logText + "\n";
+					logQueue_.emplace_back(logText);
+					cv_.notify_all();
 				}
-				logQueue_.emplace_back(logText);
-				cv_.notify_all();
 			}
 		}
 
 		void Debug(const char* format, ...)
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
-			if (logLevel_ >= LOG_DEBUG) {
-				std::string logText = "";
-				{
-					va_list arg;
+			if (logLevel_ >= LOG_ERROR) {
+				va_list arg;
+				va_start(arg, format);
+				auto len = vsnprintf(nullptr, 0, format, arg);
+				va_end(arg);
+				if (len > 0) {
+					auto size = static_cast<size_t>(len) + 1;
+					char* buffer = new char[size];
+					memset(buffer, '\0', size);
 					va_start(arg, format);
-					int size = vsnprintf(nullptr, 0, format, arg);
+					vsnprintf(buffer, size, format, arg);
 					va_end(arg);
-					if (size > 0) {
-						logText.resize(static_cast<size_t>(size) + 1);
-						va_start(arg, format);
-						vsnprintf(std::addressof(logText[0]), logText.size(), format, arg);
-						va_end(arg);
-						logText.resize(size);
-						logText.shrink_to_fit();
-						logText = GetTimeInfo_() + " [D] " + logText + "\n";
-					}
+					std::string logText(buffer);
+					delete[] buffer;
+					logText = GetTimeInfo_() + " [D] " + logText + "\n";
+					logQueue_.emplace_back(logText);
+					cv_.notify_all();
 				}
-				logQueue_.emplace_back(logText);
-				cv_.notify_all();
 			}
 		}
 
@@ -224,17 +220,12 @@ class CuLogger
 
 		std::string GetTimeInfo_()
 		{
-			std::string timeInfo = "";
-			{
-				timeInfo.resize(16);
-				auto time_stamp = time(nullptr);
-				auto tm_ptr = localtime(std::addressof(time_stamp));
-				int len = snprintf(std::addressof(timeInfo[0]), timeInfo.size(), "%02d-%02d %02d:%02d:%02d",
-					tm_ptr->tm_mon + 1, tm_ptr->tm_mday, tm_ptr->tm_hour, tm_ptr->tm_min, tm_ptr->tm_sec);
-				timeInfo.resize(len);
-				timeInfo.shrink_to_fit();
-			}
-
+			char buffer[16] = { 0 };
+			auto time_stamp = time(nullptr);
+			auto tm_ptr = localtime(std::addressof(time_stamp));
+			int len = snprintf(buffer, sizeof(buffer), "%02d-%02d %02d:%02d:%02d",
+				tm_ptr->tm_mon + 1, tm_ptr->tm_mday, tm_ptr->tm_hour, tm_ptr->tm_min, tm_ptr->tm_sec);
+			std::string timeInfo(buffer);
 			return timeInfo;
 		}
 
