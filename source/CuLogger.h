@@ -64,11 +64,14 @@ class CuLogger
 			return instance_;
 		}
 
-		void ResetLogLevel(const int &logLevel)
+		void ResetLogLevel(const int &level)
 		{
-			std::unique_lock<std::mutex> lck(mtx_);
-			if (logLevel >= LOG_NONE && logLevel <= LOG_DEBUG) {
-				logLevel_ = logLevel;
+			if (level < LOG_NONE || level > LOG_DEBUG) {
+				throw LoggerExcept("Invaild log level.");
+			}
+			{
+				std::unique_lock<std::mutex> lck(mtx_);
+				logLevel_ = level;
 			}
 		}
 
@@ -76,17 +79,17 @@ class CuLogger
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
 			if (logLevel_ >= LOG_ERROR) {
-				va_list arg;
-				va_start(arg, format);
-				auto len = vsnprintf(nullptr, 0, format, arg);
-				va_end(arg);
+				va_list args;
+				va_start(args, format);
+				size_t len = vsnprintf(nullptr, 0, format, args);
+				va_end(args);
 				if (len > 0) {
-					auto size = static_cast<size_t>(len) + 1;
-					char* buffer = new char[size];
-					memset(buffer, '\0', size);
-					va_start(arg, format);
-					vsnprintf(buffer, size, format, arg);
-					va_end(arg);
+					auto size = len + 1;
+					auto buffer = new char[size];
+					memset(buffer, 0, size);
+					va_start(args, format);
+					vsnprintf(buffer, size, format, args);
+					va_end(args);
 					std::string logText(buffer);
 					delete[] buffer;
 					logText = GetTimeInfo_() + " [E] " + logText + "\n";
@@ -99,18 +102,18 @@ class CuLogger
 		void Warning(const char* format, ...)
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
-			if (logLevel_ >= LOG_ERROR) {
-				va_list arg;
-				va_start(arg, format);
-				auto len = vsnprintf(nullptr, 0, format, arg);
-				va_end(arg);
+			if (logLevel_ >= LOG_WARNING) {
+				va_list args;
+				va_start(args, format);
+				size_t len = vsnprintf(nullptr, 0, format, args);
+				va_end(args);
 				if (len > 0) {
-					auto size = static_cast<size_t>(len) + 1;
-					char* buffer = new char[size];
-					memset(buffer, '\0', size);
-					va_start(arg, format);
-					vsnprintf(buffer, size, format, arg);
-					va_end(arg);
+					auto size = len + 1;
+					auto buffer = new char[size];
+					memset(buffer, 0, size);
+					va_start(args, format);
+					vsnprintf(buffer, size, format, args);
+					va_end(args);
 					std::string logText(buffer);
 					delete[] buffer;
 					logText = GetTimeInfo_() + " [W] " + logText + "\n";
@@ -123,18 +126,18 @@ class CuLogger
 		void Info(const char* format, ...)
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
-			if (logLevel_ >= LOG_ERROR) {
-				va_list arg;
-				va_start(arg, format);
-				auto len = vsnprintf(nullptr, 0, format, arg);
-				va_end(arg);
+			if (logLevel_ >= LOG_INFO) {
+				va_list args;
+				va_start(args, format);
+				size_t len = vsnprintf(nullptr, 0, format, args);
+				va_end(args);
 				if (len > 0) {
-					auto size = static_cast<size_t>(len) + 1;
-					char* buffer = new char[size];
-					memset(buffer, '\0', size);
-					va_start(arg, format);
-					vsnprintf(buffer, size, format, arg);
-					va_end(arg);
+					auto size = len + 1;
+					auto buffer = new char[size];
+					memset(buffer, 0, size);
+					va_start(args, format);
+					vsnprintf(buffer, size, format, args);
+					va_end(args);
 					std::string logText(buffer);
 					delete[] buffer;
 					logText = GetTimeInfo_() + " [I] " + logText + "\n";
@@ -147,18 +150,18 @@ class CuLogger
 		void Debug(const char* format, ...)
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
-			if (logLevel_ >= LOG_ERROR) {
-				va_list arg;
-				va_start(arg, format);
-				auto len = vsnprintf(nullptr, 0, format, arg);
-				va_end(arg);
+			if (logLevel_ >= LOG_DEBUG) {
+				va_list args;
+				va_start(args, format);
+				size_t len = vsnprintf(nullptr, 0, format, args);
+				va_end(args);
 				if (len > 0) {
-					auto size = static_cast<size_t>(len) + 1;
-					char* buffer = new char[size];
-					memset(buffer, '\0', size);
-					va_start(arg, format);
-					vsnprintf(buffer, size, format, arg);
-					va_end(arg);
+					auto size = len + 1;
+					auto buffer = new char[size];
+					memset(buffer, 0, size);
+					va_start(args, format);
+					vsnprintf(buffer, size, format, args);
+					va_end(args);
 					std::string logText(buffer);
 					delete[] buffer;
 					logText = GetTimeInfo_() + " [D] " + logText + "\n";
@@ -168,9 +171,23 @@ class CuLogger
 			}
 		}
 
+		void Flush()
+		{
+			bool flushed = false;
+			while (!flushed) {
+				std::unique_lock<std::mutex> lck(mtx_);
+				flushed = queueFlushed_;
+			}
+		}
+
 	private:
 		CuLogger(const int &logLevel, const std::string &logPath) : 
-			logPath_(logPath), logLevel_(logLevel), cv_(), mtx_(), logQueue_() 
+			logPath_(logPath), 
+			logLevel_(logLevel), 
+			cv_(), 
+			mtx_(), 
+			logQueue_(), 
+			queueFlushed_(true)
 		{
 			if (!CreateLog_(logPath_)) {
 				throw LoggerExcept("Failed to create log file.");
@@ -198,21 +215,23 @@ class CuLogger
 			if (!fp) {
 				throw LoggerExcept("Failed to open log file.");
 			}
+			std::vector<std::string> writeQueue{};
 			for (;;) {
-				std::vector<std::string> workQueue{};
 				{
 					std::unique_lock<std::mutex> lck(mtx_);
+					queueFlushed_ = logQueue_.empty();
 					while (logQueue_.empty()) {
 						cv_.wait(lck);
 					}
-					workQueue = logQueue_;
+					writeQueue = logQueue_;
 					logQueue_.clear();
 				}
-				if (!workQueue.empty()) {
-					for (const auto &log : workQueue) {
+				if (!writeQueue.empty()) {
+					for (const auto &log : writeQueue) {
 						fputs(log.c_str(), fp);
 					}
 					fflush(fp);
+					writeQueue.clear();
 				}
 			}
 			fclose(fp);
@@ -236,6 +255,7 @@ class CuLogger
 		std::condition_variable cv_;
 		std::mutex mtx_;
 		std::vector<std::string> logQueue_;
+		bool queueFlushed_;
 };
 
 #endif

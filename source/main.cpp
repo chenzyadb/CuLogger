@@ -44,25 +44,24 @@ int main(int argc, char* argv[])
 
     {
         std::thread thread0([&]() {
-            auto &logger = *CuLogger::GetLogger();
+            auto logger = CuLogger::GetLogger();
             for (int i = 1; i <= 100000; i++) {
-                logger.Info("thread0 log %lld.", i);
+                logger->Info("thread0 log %lld.", i);
             }
+            logger->Flush();
+            std::exit(0);
         });
         thread0.detach();
     }
     
     {
-        std::thread thread1([&]() {
-            auto logger = CuLogger::GetLogger();
-            for (int i = 1; i <= 100000; i++) {
-                logger->Info("thread1 log %d.", i);
-            }
-        });
-        thread1.detach();
+        auto logger = CuLogger::GetLogger();
+        logger->Info("MainThread waiting.");
     }
-    
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+
+    for (;;) {
+        std::this_thread::sleep_for(std::chrono::seconds(INT_MAX));
+    }
 
     return 0;
 }
