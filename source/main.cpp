@@ -1,5 +1,4 @@
 ﻿#include <iostream>
-#include <chrono>
 #include "CuLogger.h"
 
 int main(int argc, char* argv[])
@@ -46,12 +45,22 @@ int main(int argc, char* argv[])
         std::thread thread0([&]() {
             auto logger = CuLogger::GetLogger();
             for (int i = 1; i <= 100000; i++) {
-                logger->Info("thread0 log %lld.", i);
+                logger->Info("thread0 log %d.", i);
             }
             logger->Flush();
             std::exit(0);
         });
         thread0.detach();
+    }
+
+    {
+        std::thread thread1([&]() {
+            auto logger = CuLogger::GetLogger();
+            for (int i = 1; i <= 100000; i++) {
+                logger->Info("thread1 log %d.", i);
+            }
+        });
+        thread1.detach();
     }
     
     {

@@ -11,12 +11,13 @@
 #include <cstdio>
 #include <cstdarg>
 #include <cstring>
-#include <ctime>
+#include <chrono>
 #include <exception>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <thread>
 #include <functional>
 
@@ -43,7 +44,7 @@ class CuLogger
 		static constexpr int LOG_INFO = 2;
 		static constexpr int LOG_DEBUG = 3;
 
-		static void CreateLogger(const int &logLevel, const std::string &logPath)
+		static CuLogger* CreateLogger(const int &logLevel, const std::string &logPath)
 		{
 			if (instance_ != nullptr) {
 				throw LoggerExcept("Logger already exist.");
@@ -54,6 +55,7 @@ class CuLogger
 					throw LoggerExcept("Failed to create logger.");
 				}
 			});
+			return instance_;
 		}
 
 		static CuLogger* GetLogger()
@@ -78,96 +80,76 @@ class CuLogger
 		void Error(const char* format, ...)
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
-			if (logLevel_ >= LOG_ERROR) {
-				va_list args;
+			va_list args{};
+			va_start(args, format);
+			size_t len = vsnprintf(nullptr, 0, format, args);
+			va_end(args);
+			if (len > 0) {
+				auto size = len + 1;
+				auto buffer = new char[size];
+				memset(buffer, 0, size);
 				va_start(args, format);
-				size_t len = vsnprintf(nullptr, 0, format, args);
+				vsnprintf(buffer, size, format, args);
 				va_end(args);
-				if (len > 0) {
-					auto size = len + 1;
-					auto buffer = new char[size];
-					memset(buffer, 0, size);
-					va_start(args, format);
-					vsnprintf(buffer, size, format, args);
-					va_end(args);
-					std::string logText(buffer);
-					delete[] buffer;
-					logText = GetTimeInfo_() + " [E] " + logText + "\n";
-					logQueue_.emplace_back(logText);
-					cv_.notify_all();
-				}
+				JoinLogQueue_(LOG_ERROR, buffer);
+				delete[] buffer;
 			}
 		}
 
 		void Warning(const char* format, ...)
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
-			if (logLevel_ >= LOG_WARNING) {
-				va_list args;
+			va_list args{};
+			va_start(args, format);
+			size_t len = vsnprintf(nullptr, 0, format, args);
+			va_end(args);
+			if (len > 0) {
+				auto size = len + 1;
+				auto buffer = new char[size];
+				memset(buffer, 0, size);
 				va_start(args, format);
-				size_t len = vsnprintf(nullptr, 0, format, args);
+				vsnprintf(buffer, size, format, args);
 				va_end(args);
-				if (len > 0) {
-					auto size = len + 1;
-					auto buffer = new char[size];
-					memset(buffer, 0, size);
-					va_start(args, format);
-					vsnprintf(buffer, size, format, args);
-					va_end(args);
-					std::string logText(buffer);
-					delete[] buffer;
-					logText = GetTimeInfo_() + " [W] " + logText + "\n";
-					logQueue_.emplace_back(logText);
-					cv_.notify_all();
-				}
+				JoinLogQueue_(LOG_WARNING, buffer);
+				delete[] buffer;
 			}
 		}
 
 		void Info(const char* format, ...)
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
-			if (logLevel_ >= LOG_INFO) {
-				va_list args;
+			va_list args{};
+			va_start(args, format);
+			size_t len = vsnprintf(nullptr, 0, format, args);
+			va_end(args);
+			if (len > 0) {
+				auto size = len + 1;
+				auto buffer = new char[size];
+				memset(buffer, 0, size);
 				va_start(args, format);
-				size_t len = vsnprintf(nullptr, 0, format, args);
+				vsnprintf(buffer, size, format, args);
 				va_end(args);
-				if (len > 0) {
-					auto size = len + 1;
-					auto buffer = new char[size];
-					memset(buffer, 0, size);
-					va_start(args, format);
-					vsnprintf(buffer, size, format, args);
-					va_end(args);
-					std::string logText(buffer);
-					delete[] buffer;
-					logText = GetTimeInfo_() + " [I] " + logText + "\n";
-					logQueue_.emplace_back(logText);
-					cv_.notify_all();
-				}
+				JoinLogQueue_(LOG_INFO, buffer);
+				delete[] buffer;
 			}
 		}
 
 		void Debug(const char* format, ...)
 		{
 			std::unique_lock<std::mutex> lck(mtx_);
-			if (logLevel_ >= LOG_DEBUG) {
-				va_list args;
+			va_list args{};
+			va_start(args, format);
+			size_t len = vsnprintf(nullptr, 0, format, args);
+			va_end(args);
+			if (len > 0) {
+				auto size = len + 1;
+				auto buffer = new char[size];
+				memset(buffer, 0, size);
 				va_start(args, format);
-				size_t len = vsnprintf(nullptr, 0, format, args);
+				vsnprintf(buffer, size, format, args);
 				va_end(args);
-				if (len > 0) {
-					auto size = len + 1;
-					auto buffer = new char[size];
-					memset(buffer, 0, size);
-					va_start(args, format);
-					vsnprintf(buffer, size, format, args);
-					va_end(args);
-					std::string logText(buffer);
-					delete[] buffer;
-					logText = GetTimeInfo_() + " [D] " + logText + "\n";
-					logQueue_.emplace_back(logText);
-					cv_.notify_all();
-				}
+				JoinLogQueue_(LOG_DEBUG, buffer);
+				delete[] buffer;
 			}
 		}
 
@@ -175,8 +157,11 @@ class CuLogger
 		{
 			bool flushed = false;
 			while (!flushed) {
-				std::unique_lock<std::mutex> lck(mtx_);
-				flushed = queueFlushed_;
+				{
+					std::unique_lock<std::mutex> lck(mtx_);
+					flushed = queueFlushed_;
+				}
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			}
 		}
 
@@ -192,7 +177,7 @@ class CuLogger
 			if (!CreateLog_(logPath_)) {
 				throw LoggerExcept("Failed to create log file.");
 			}
-			std::thread thread_(std::bind(&CuLogger::LoggerMain_, this));
+			std::thread thread_(std::bind(&CuLogger::MainLoop_, this));
 			thread_.detach();
 		}
 		CuLogger() = delete;
@@ -201,7 +186,7 @@ class CuLogger
 
 		bool CreateLog_(const std::string &logPath)
 		{
-			auto fp = fopen(logPath.c_str(), "w");
+			auto fp = fopen(logPath.c_str(), "wt");
 			if (fp) {
 				fclose(fp);
 				return true;
@@ -209,9 +194,9 @@ class CuLogger
 			return false;
 		}
 
-		void LoggerMain_()
+		void MainLoop_()
 		{
-			auto fp = fopen(logPath_.c_str(), "a");
+			auto fp = fopen(logPath_.c_str(), "at");
 			if (!fp) {
 				throw LoggerExcept("Failed to open log file.");
 			}
@@ -234,18 +219,29 @@ class CuLogger
 					writeQueue.clear();
 				}
 			}
-			fclose(fp);
 		}
 
 		std::string GetTimeInfo_()
 		{
+			auto now = std::chrono::system_clock::now();
+			auto nowTime = std::chrono::system_clock::to_time_t(now);
+			auto localTime = std::localtime(std::addressof(nowTime));
 			char buffer[16] = { 0 };
-			auto time_stamp = time(nullptr);
-			auto tm_ptr = localtime(std::addressof(time_stamp));
-			int len = snprintf(buffer, sizeof(buffer), "%02d-%02d %02d:%02d:%02d",
-				tm_ptr->tm_mon + 1, tm_ptr->tm_mday, tm_ptr->tm_hour, tm_ptr->tm_min, tm_ptr->tm_sec);
+			snprintf(buffer, sizeof(buffer), "%02d-%02d %02d:%02d:%02d", 
+					 localTime->tm_mon + 1, localTime->tm_mday, localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
 			std::string timeInfo(buffer);
 			return timeInfo;
+		}
+
+		void JoinLogQueue_(const int &level, const std::string &logText)
+		{
+			static const std::unordered_map<int, std::string> levelStrMap{
+				{LOG_NONE, ""}, {LOG_ERROR, " [E] "}, {LOG_WARNING, " [W] "}, {LOG_INFO, " [I] "}, {LOG_DEBUG, " [D] "}
+			};
+			if (level <= logLevel_) { 
+				logQueue_.emplace_back(GetTimeInfo_() + levelStrMap.at(level) + logText + "\n");
+				cv_.notify_all();
+			}
 		}
 
 		static CuLogger* instance_;
