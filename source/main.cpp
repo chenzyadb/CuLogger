@@ -1,6 +1,12 @@
 ﻿#include <iostream>
 #include "CuLogger.h"
 
+#define CLOGE(...) CU::Logger::Error(__VA_ARGS__)
+#define CLOGW(...) CU::Logger::Warn(__VA_ARGS__)
+#define CLOGI(...) CU::Logger::Info(__VA_ARGS__)
+#define CLOGD(...) CU::Logger::Debug(__VA_ARGS__)
+#define CLOGV(...) CU::Logger::Verbose(__VA_ARGS__)
+
 int main(int argc, char* argv[])
 {
     std::string logPath = argv[0];
@@ -9,64 +15,32 @@ int main(int argc, char* argv[])
     } else if (logPath.rfind("/") != std::string::npos) {
         logPath = logPath.substr(0, logPath.rfind("/")) + "/log.txt";
     }
-
-    try {
-        CuLogger::GetLogger();
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-    }
     
-    CuLogger::CreateLogger(CuLogger::LOG_DEBUG, logPath);
+    CU::Logger::Create(CU::Logger::LogLevel::INFO, logPath);
 
-    {
-        auto logger = CuLogger::GetLogger();
-        std::cout << "Singleton: " << ((CuLogger::GetLogger() == logger) ? "true" : "false") << std::endl;
-    }
+    CLOGE("This is log output.");
+    CLOGW("This is log output.");
+    CLOGI("This is log output.");
+    CLOGD("This is log output.");
+    CLOGV("This is log output.");
 
-    {
-        auto logger = CuLogger::GetLogger();
-        logger->ResetLogLevel(CuLogger::LOG_ERROR);
-        logger->Error("This is log output.");
-        logger->Warning("This is log output.");
-        logger->Info("This is log output.");
-        logger->Debug("This is log output.");
-    }
+    std::thread thread0([&]() {
+        for (int i = 1; i <= 1000000; i++) {
+            CLOGI("thread0 log %d.", i);
+        }
+        CU::Logger::Flush();
+        std::exit(0);
+    });
+    thread0.detach();
 
-    {
-        auto logger = CuLogger::GetLogger();
-        logger->ResetLogLevel(CuLogger::LOG_INFO);
-        logger->Error("This is log output.");
-        logger->Warning("This is log output.");
-        logger->Info("This is log output.");
-        logger->Debug("This is log output.");
-    }
-
-    {
-        std::thread thread0([&]() {
-            auto logger = CuLogger::GetLogger();
-            for (int i = 1; i <= 100000; i++) {
-                logger->Info("thread0 log %d.", i);
-            }
-            logger->Flush();
-            std::exit(0);
-        });
-        thread0.detach();
-    }
-
-    {
-        std::thread thread1([&]() {
-            auto logger = CuLogger::GetLogger();
-            for (int i = 1; i <= 100000; i++) {
-                logger->Info("thread1 log %d.", i);
-            }
-        });
-        thread1.detach();
-    }
+    std::thread thread1([&]() {
+        for (int i = 1; i <= 1000000; i++) {
+            CLOGI("thread1 log %d.", i);
+        }
+    });
+    thread1.detach();
     
-    {
-        auto logger = CuLogger::GetLogger();
-        logger->Info("MainThread waiting.");
-    }
+    CLOGI("MainThread waiting.");
 
     for (;;) {
         std::this_thread::sleep_for(std::chrono::seconds(INT_MAX));
